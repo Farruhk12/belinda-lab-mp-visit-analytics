@@ -1,0 +1,7 @@
+{
+  "name": "Belinda Lab MP Visit Analytics",
+  "description": "A comprehensive system for monitoring and analyzing medical representative visits, integrating with Google Sheets for real-time tracking, calendar planning, and performance metrics.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
