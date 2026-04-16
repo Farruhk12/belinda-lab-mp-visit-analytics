@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { GlobalState, Visit, Employee, SharedFilters, SharedFilterKey, MpAnalyticsStats, MpVisitDistribution, PotentialDoctor } from '../types';
-import { normalizeDate, getVisitRepName, getVisitDoctor, getVisitLPUAbbr, getVisitSpec, getVisitDate, isWeekend, toLocalISO, indexVisitsByRep, sortEmployees, groupEmployeesByTerritory } from '../utils';
+import { normalizeDate, getVisitRepName, getVisitDoctor, getVisitLPUAbbr, getVisitSpec, getVisitDate, isWeekend, toLocalISO, indexVisitsByRep, sortEmployees, groupEmployeesByTerritory, territoryMatchesEmployee } from '../utils';
 import { CustomMultiMonthInput, CustomMultiSelect } from './ui';
 import DetailModal from './DetailModal';
 import PotentialModal from './PotentialModal';
@@ -39,7 +39,7 @@ const AnalyticsSection: React.FC<Props> = ({
   const [asyncOldKeys, setAsyncOldKeys] = useState<string[] | null>(null);
   const [monthsLoading, setMonthsLoading] = useState(false);
   const [modalInfo, setModalInfo] = useState<{ title: string; subtitle: string; items: Visit[]; grouping?: 'default' | 'lpu' | 'doctor' } | null>(null);
-  const [potentialModal, setPotentialModal] = useState<{ mpName: string; inLPU: PotentialDoctor[]; territory: PotentialDoctor[] } | null>(null);
+  const [potentialModal, setPotentialModal] = useState<{ mpName: string; modeLabel: string; description: string; doctors: PotentialDoctor[] } | null>(null);
 
   const [selTerrs, setSelTerrs] = useState<string[]>([]);
   const [selGroups, setSelGroups] = useState<string[]>([]);
@@ -234,6 +234,18 @@ const AnalyticsSection: React.FC<Props> = ({
     return idx;
   }, [monthVisits]);
 
+  /** Все пары «врач|ЛПУ», по которым в выбранном периоде был хотя бы один визит (любой МП) */
+  const globalVisitedDoctorKeys = useMemo(() => {
+    const s = new Set<string>();
+    for (const v of monthVisits) {
+      const doc = getVisitDoctor(v);
+      const lpu = getVisitLPUAbbr(v);
+      if (doc === '—' || !lpu || lpu === '—') continue;
+      s.add(`${doc}|${lpu}`);
+    }
+    return s;
+  }, [monthVisits]);
+
   const terrMpMap = useMemo(() => {
     const m = new Map<string, Set<string>>();
     for (const e of allEmps) {
@@ -350,6 +362,8 @@ const AnalyticsSection: React.FC<Props> = ({
 
       let potInLPU = 0;
       let potTerr = 0;
+      let potOurs = 0;
+      let potMarket = 0;
       const terrReps = terrMpMap.get(emp.Область);
       for (const [key, info] of globalDoctorIndex) {
         if (visitedDoctorKeys.has(key)) continue;
@@ -357,7 +371,24 @@ const AnalyticsSection: React.FC<Props> = ({
         if (!visitedBySameTerrRep) continue;
         if (seenLPUs.has(info.lpu)) potInLPU++;
         if (seenSpecs.has(info.spec)) potTerr++;
+        if (seenLPUs.has(info.lpu) && seenSpecs.has(info.spec)) potOurs++;
       }
+
+      const baseInLPU = new Set<string>();
+      const baseTerr = new Set<string>();
+      const baseOurs = new Set<string>();
+      for (const row of data.doctorBase) {
+        if (!territoryMatchesEmployee(emp.Область, row.territory)) continue;
+        const key = `${row.doctor}|${row.lpuAbbr}`;
+        if (globalVisitedDoctorKeys.has(key)) continue;
+        if (visitedDoctorKeys.has(key)) continue;
+        if (seenLPUs.has(row.lpuAbbr)) baseInLPU.add(key);
+        if (row.spec !== '—' && seenSpecs.has(row.spec)) baseTerr.add(key);
+        if (seenLPUs.has(row.lpuAbbr) && row.spec !== '—' && seenSpecs.has(row.spec)) baseOurs.add(key);
+      }
+      potInLPU += baseInLPU.size;
+      potTerr += baseTerr.size;
+      potMarket += baseOurs.size;
 
       res[emp.МП] = {
         total: empMonthVisits.length,
@@ -374,10 +405,12 @@ const AnalyticsSection: React.FC<Props> = ({
         uniqueSpecVisits: uniqueSpecVisitsList,
         potentialInLPU: potInLPU,
         potentialTerritory: potTerr,
+        potentialOurs: potOurs,
+        potentialMarket: potMarket,
       };
     }
     return res;
-  }, [groupedData, visitsByMp, oldKeysForNew, globalDoctorIndex, terrMpMap]);
+  }, [groupedData, visitsByMp, oldKeysForNew, globalDoctorIndex, terrMpMap, data.doctorBase, globalVisitedDoctorKeys]);
 
   const defaultStats: MpAnalyticsStats = {
     total: 0,
@@ -394,33 +427,59 @@ const AnalyticsSection: React.FC<Props> = ({
     uniqueSpecVisits: [],
     potentialInLPU: 0,
     potentialTerritory: 0,
+    potentialOurs: 0,
+    potentialMarket: 0,
   };
 
-  const openPotential = useCallback((emp: Employee) => {
+  const openPotential = useCallback((emp: Employee, mode: 'ours' | 'market') => {
     const empVisits = visitsByMp.get(emp.МП) || [];
     const visitedKeys = new Set(empVisits.map(v => `${getVisitDoctor(v)}|${getVisitLPUAbbr(v)}`));
     const empLPUs = new Set(empVisits.map(v => getVisitLPUAbbr(v)).filter(l => l !== '—'));
     const empSpecs = new Set(empVisits.map(v => getVisitSpec(v)).filter(s => s !== '—'));
-    const terrReps = terrMpMap.get(emp.Область);
 
-    const inLPU: PotentialDoctor[] = [];
-    const territory: PotentialDoctor[] = [];
+    if (mode === 'ours') {
+      const terrReps = terrMpMap.get(emp.Область);
+      const potentialOurs: PotentialDoctor[] = [];
 
-    for (const [key, info] of globalDoctorIndex) {
-      if (visitedKeys.has(key)) continue;
-      const sameTerrReps = terrReps ? [...info.reps].filter(r => terrReps.has(r) && r !== emp.МП) : [];
-      if (!sameTerrReps.length) continue;
+      for (const [key, info] of globalDoctorIndex) {
+        if (visitedKeys.has(key)) continue;
+        const sameTerrReps = terrReps ? [...info.reps].filter(r => terrReps.has(r) && r !== emp.МП) : [];
+        if (!sameTerrReps.length) continue;
 
-      if (empLPUs.has(info.lpu)) {
-        inLPU.push({ doctor: info.doctor, lpu: info.lpu, spec: info.spec, visitedByReps: sameTerrReps });
+        if (empLPUs.has(info.lpu) && empSpecs.has(info.spec)) {
+          potentialOurs.push({ doctor: info.doctor, lpu: info.lpu, spec: info.spec, visitedByReps: sameTerrReps });
+        }
       }
-      if (empSpecs.has(info.spec)) {
-        territory.push({ doctor: info.doctor, lpu: info.lpu, spec: info.spec, visitedByReps: sameTerrReps });
+
+      setPotentialModal({
+        mpName: emp.МП,
+        modeLabel: 'Пот. наш',
+        description: 'Врачи, которых посещают другие МП компании в тех же ЛПУ и с теми же специальностями, что у данного МП.',
+        doctors: potentialOurs,
+      });
+      return;
+    }
+
+    const seenBaseMarket = new Set<string>();
+    const potentialMarket: PotentialDoctor[] = [];
+    for (const row of data.doctorBase) {
+      if (!territoryMatchesEmployee(emp.Область, row.territory)) continue;
+      const key = `${row.doctor}|${row.lpuAbbr}`;
+      if (globalVisitedDoctorKeys.has(key)) continue;
+      if (visitedKeys.has(key)) continue;
+      if (empLPUs.has(row.lpuAbbr) && row.spec !== '—' && empSpecs.has(row.spec) && !seenBaseMarket.has(key)) {
+        seenBaseMarket.add(key);
+        potentialMarket.push({ doctor: row.doctor, lpu: row.lpuAbbr, spec: row.spec, visitedByReps: [], fromBase: true });
       }
     }
 
-    setPotentialModal({ mpName: emp.МП, inLPU, territory });
-  }, [visitsByMp, globalDoctorIndex, terrMpMap]);
+    setPotentialModal({
+      mpName: emp.МП,
+      modeLabel: 'Пот. рынка',
+      description: 'Врачи из листа «База» в тех же ЛПУ и с теми же специальностями, что у данного МП. В периоде к ним не было визитов.',
+      doctors: potentialMarket,
+    });
+  }, [visitsByMp, globalDoctorIndex, terrMpMap, data.doctorBase, globalVisitedDoctorKeys]);
 
   const periodHint =
     sortYm(analyticsMonths).length > 1
@@ -480,7 +539,8 @@ const AnalyticsSection: React.FC<Props> = ({
                 <th className="px-2 py-2 text-center border-r border-white/20 w-1">4</th>
                 <th className="px-2 py-2 text-center border-r border-white/20 w-1">5+</th>
                 <th className="px-3 py-2 text-center bg-brand-primary/90 whitespace-nowrap w-1">Новые</th>
-                <th className="px-3 py-2 text-center bg-brand-primary/80 whitespace-nowrap w-1">Потенциал</th>
+                <th className="px-3 py-2 text-center bg-brand-primary/80 whitespace-nowrap w-1">Пот. наш</th>
+                <th className="px-3 py-2 text-center bg-brand-primary/70 whitespace-nowrap w-1">Пот. рынка</th>
                 <th className="w-full bg-white border-l border-gray-100"></th>
               </tr>
             </thead>
@@ -488,7 +548,7 @@ const AnalyticsSection: React.FC<Props> = ({
               {Object.keys(groupedData).sort().map(terr => (
                 <React.Fragment key={terr}>
                   <tr className="bg-gray-50/80 font-black text-brand-primary text-[11px] uppercase tracking-widest border-y border-gray-200">
-                    <td colSpan={15} className="px-3 py-1.5 text-center bg-gray-100/50">{terr}</td>
+                    <td colSpan={16} className="px-3 py-1.5 text-center bg-gray-100/50">{terr}</td>
                   </tr>
                   {groupedData[terr].map(emp => {
                     const s = stats[emp.МП] ?? defaultStats;
@@ -512,7 +572,7 @@ const AnalyticsSection: React.FC<Props> = ({
                         </td>
                         <td
                           className={`px-3 py-1.5 border-r border-gray-200 whitespace-nowrap text-center font-black text-xs ${s.uniqueSpecs > 0 ? 'text-amber-600 bg-amber-50/30 cursor-pointer hover:bg-amber-50' : 'text-gray-300'}`}
-                          onClick={() => s.uniqueSpecs > 0 && setModalInfo({ title: "Специальности врачей", subtitle: emp.МП, items: s.all })}
+                          onClick={() => s.uniqueSpecs > 0 && setModalInfo({ title: "Специальности врачей", subtitle: emp.МП, items: s.all, grouping: 'spec' })}
                         >
                           {s.uniqueSpecs || '—'}
                         </td>
@@ -528,10 +588,16 @@ const AnalyticsSection: React.FC<Props> = ({
                           {s.newCount || '—'}
                         </td>
                         <td
-                          className={`px-3 py-1.5 text-center font-black text-xs whitespace-nowrap ${s.potentialInLPU > 0 ? 'text-orange-600 bg-orange-50/30 cursor-pointer hover:bg-orange-50' : 'text-gray-300'}`}
-                          onClick={() => (s.potentialInLPU > 0 || s.potentialTerritory > 0) && openPotential(emp)}
+                          className={`px-3 py-1.5 text-center font-black text-xs whitespace-nowrap ${s.potentialOurs > 0 ? 'text-orange-600 bg-orange-50/30 cursor-pointer hover:bg-orange-50' : 'text-gray-300'}`}
+                          onClick={() => s.potentialOurs > 0 && openPotential(emp, 'ours')}
                         >
-                          {s.potentialInLPU || '—'}
+                          {s.potentialOurs || '—'}
+                        </td>
+                        <td
+                          className={`px-3 py-1.5 text-center font-black text-xs whitespace-nowrap ${s.potentialMarket > 0 ? 'text-purple-600 bg-purple-50/30 cursor-pointer hover:bg-purple-50' : 'text-gray-300'}`}
+                          onClick={() => s.potentialMarket > 0 && openPotential(emp, 'market')}
+                        >
+                          {s.potentialMarket || '—'}
                         </td>
                         <td className="w-full"></td>
                       </tr>
@@ -544,7 +610,15 @@ const AnalyticsSection: React.FC<Props> = ({
         </div>
       </div>
       {modalInfo && <DetailModal title={modalInfo.title} subtitle={modalInfo.subtitle} items={modalInfo.items} grouping={modalInfo.grouping} onClose={() => setModalInfo(null)} />}
-      {potentialModal && <PotentialModal mpName={potentialModal.mpName} potentialInLPU={potentialModal.inLPU} potentialTerritory={potentialModal.territory} onClose={() => setPotentialModal(null)} />}
+      {potentialModal && (
+        <PotentialModal
+          mpName={potentialModal.mpName}
+          modeLabel={potentialModal.modeLabel}
+          description={potentialModal.description}
+          doctors={potentialModal.doctors}
+          onClose={() => setPotentialModal(null)}
+        />
+      )}
     </div>
   );
 };

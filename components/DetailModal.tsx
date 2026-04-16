@@ -86,7 +86,7 @@ interface DetailModalProps {
   subtitle: string;
   items: Visit[];
   onClose: () => void;
-  grouping?: 'default' | 'lpu' | 'doctor';
+  grouping?: 'default' | 'lpu' | 'doctor' | 'spec';
 }
 
 const DetailModal: React.FC<DetailModalProps> = ({ title, subtitle, items, onClose, grouping = 'default' }) => {
@@ -127,7 +127,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ title, subtitle, items, onClo
       subTitle: string,
       meta: string,
       dates: string[],
-      mps: string[]
+      mps: string[],
+      doctors: string[]
     }> = {};
 
     filteredItems.forEach(v => {
@@ -142,7 +143,12 @@ const DetailModal: React.FC<DetailModalProps> = ({ title, subtitle, items, onClo
       let subTitle = '';
       let meta = '';
 
-      if (grouping === 'lpu') {
+      if (grouping === 'spec') {
+        key = spec;
+        mainTitle = spec;
+        subTitle = '';
+        meta = '';
+      } else if (grouping === 'lpu') {
         key = lpuAbbr;
         mainTitle = lpuAbbr;
         subTitle = lpuFull;
@@ -165,7 +171,8 @@ const DetailModal: React.FC<DetailModalProps> = ({ title, subtitle, items, onClo
           subTitle,
           meta,
           dates: [],
-          mps: []
+          mps: [],
+          doctors: []
         };
       }
 
@@ -176,6 +183,10 @@ const DetailModal: React.FC<DetailModalProps> = ({ title, subtitle, items, onClo
 
       if (repName && !groups[key].mps.includes(repName)) {
         groups[key].mps.push(repName);
+      }
+
+      if (doc && !groups[key].doctors.includes(doc)) {
+        groups[key].doctors.push(doc);
       }
     });
 
@@ -194,7 +205,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ title, subtitle, items, onClo
         <div className="bg-brand-primary p-6 text-white flex justify-between items-start shrink-0">
           <div>
             <h3 className="font-black text-xl tracking-tight mb-1">{title}</h3>
-            <p className="text-xs text-white/60 font-bold uppercase tracking-widest">{subtitle} — {filteredItems.length} визитов, {groupedItems.length} врачей</p>
+            <p className="text-xs text-white/60 font-bold uppercase tracking-widest">{subtitle} — {filteredItems.length} визитов, {groupedItems.length} {grouping === 'spec' ? 'специальностей' : 'врачей'}</p>
           </div>
           <button
             onClick={onClose}
@@ -225,9 +236,15 @@ const DetailModal: React.FC<DetailModalProps> = ({ title, subtitle, items, onClo
               <thead className="bg-gray-100 text-[10px] font-black uppercase tracking-widest text-left sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-2.5 text-gray-500 w-8">#</th>
-                  <th className="px-4 py-2.5 text-gray-500">Врач</th>
-                  <th className="px-4 py-2.5 text-gray-500">Специальность</th>
-                  <th className="px-4 py-2.5 text-gray-500">ЛПУ</th>
+                  <th className="px-4 py-2.5 text-gray-500">{grouping === 'spec' ? 'Специальность' : 'Врач'}</th>
+                  {grouping === 'spec' ? (
+                    <th className="px-4 py-2.5 text-gray-500 text-center">Врачей</th>
+                  ) : (
+                    <>
+                      <th className="px-4 py-2.5 text-gray-500">Специальность</th>
+                      <th className="px-4 py-2.5 text-gray-500">ЛПУ</th>
+                    </>
+                  )}
                   <th className="px-4 py-2.5 text-gray-500 text-center">Визиты</th>
                   <th className="px-4 py-2.5 text-gray-500">Даты</th>
                 </tr>
@@ -237,8 +254,14 @@ const DetailModal: React.FC<DetailModalProps> = ({ title, subtitle, items, onClo
                   <tr key={i} className="border-b border-gray-100 hover:bg-white transition-colors">
                     <td className="px-4 py-2.5 text-gray-300 font-bold text-xs">{i + 1}</td>
                     <td className="px-4 py-2.5 font-bold text-brand-primary text-xs whitespace-nowrap">{group.mainTitle}</td>
-                    <td className="px-4 py-2.5 text-gray-400 text-xs whitespace-nowrap">{group.subTitle}</td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs font-medium">{group.meta}</td>
+                    {grouping === 'spec' ? (
+                      <td className="px-4 py-2.5 text-center font-black text-xs text-blue-600">{group.doctors.length}</td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2.5 text-gray-400 text-xs whitespace-nowrap">{group.subTitle}</td>
+                        <td className="px-4 py-2.5 text-gray-500 text-xs font-medium">{group.meta}</td>
+                      </>
+                    )}
                     <td className="px-4 py-2.5 text-center font-black text-xs text-brand-accent">{group.dates.length}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex flex-wrap gap-1">

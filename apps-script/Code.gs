@@ -88,7 +88,11 @@ function doGet(e) {
     ordersJson = filterByMonth(ordersJson, monthParam);
   }
 
-  // 5. Пользователи системы (Менеджера)
+  // 5. База врачей (справочник по территориям / ЛПУ — для аналитики «потенциал»)
+  const doctorBaseSheet = ss.getSheetByName("База");
+  const doctorBaseJson = doctorBaseSheet ? getSheetData(doctorBaseSheet) : [];
+
+  // 6. Пользователи системы (Менеджера)
   const managersSheet = ss.getSheetByName("Менеджера");
   let managersJson    = [];
 
@@ -124,6 +128,7 @@ function doGet(e) {
     allEmployees: employeesJson,
     fixation:     fixationJson,
     orders:       ordersJson,
+    doctorBase:   doctorBaseJson,
     managers:     managersJson
   };
 

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { TabType, GlobalState, ApiResponse, User, Employee, SharedFilters, SharedFilterKey } from './types';
-import { getVisitRepName } from './utils';
+import { getVisitRepName, parseDoctorBaseRows } from './utils';
 import VisitsSection from './components/VisitsSection';
 import CalendarSection from './components/CalendarSection';
 import AnalyticsSection from './components/AnalyticsSection';
@@ -125,6 +125,7 @@ const App: React.FC = () => {
     fixation: [],
     orders: [],
     oldDoctorKeys: [],
+    doctorBase: [],
     loading: true,
     error: null
   });
@@ -137,6 +138,7 @@ const App: React.FC = () => {
       fixation: data.fixation || [],
       orders: data.orders || [],
       oldDoctorKeys: data.oldDoctorKeys || [],
+      doctorBase: parseDoctorBaseRows(data.doctorBase ?? []),
       loading: false,
       error: null
     });
@@ -171,6 +173,7 @@ const App: React.FC = () => {
         fixation: [],
         orders: [],
         oldDoctorKeys: [],
+        doctorBase: [],
         loading: false,
         error: `Нет сохранённых данных в кэше за ${month}. Снимите «Работать из кэша» или нажмите «Скачать в кэш» (нужен интернет).`,
       });

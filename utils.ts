@@ -1,5 +1,5 @@
 
-import { GroupSort, Employee, Visit, SharedFilters } from './types';
+import { GroupSort, Employee, Visit, SharedFilters, DoctorBaseRow } from './types';
 
 export const toLocalISO = (date: Date): string => {
   const y = date.getFullYear();
@@ -111,6 +111,35 @@ export const getVisitDate = (v: Visit): string =>
 
 export const getVisitComment = (v: Visit): string =>
   v["Комментарий"] || v["Примечание"] || v["Комментарии"] || '';
+
+/** Сопоставление территории сотрудника (Область) и строки листа «База» */
+export const territoryMatchesEmployee = (empTerritory: string, baseTerritory: string): boolean => {
+  const a = empTerritory.trim().toLowerCase();
+  const b = baseTerritory.trim().toLowerCase();
+  if (!a || !b) return false;
+  return a === b;
+};
+
+/**
+ * Преобразует строки листа «База» (заголовки как в таблице) в унифицированный вид.
+ */
+export const parseDoctorBaseRows = (rows: Record<string, unknown>[]): DoctorBaseRow[] => {
+  const out: DoctorBaseRow[] = [];
+  for (const r of rows) {
+    const territory = String(r["Территория"] ?? r["Область"] ?? "").trim();
+    const lpuAbbr = String(r["Аб ЛПУ"] ?? r["Аб ЛПУ "] ?? "").trim();
+    const doctor = String(r["Имя доктора"] ?? r["Врач"] ?? "").trim();
+    const specRaw = String(r["Специальность"] ?? "").trim();
+    if (!doctor || !lpuAbbr) continue;
+    out.push({
+      territory,
+      lpuAbbr,
+      doctor,
+      spec: specRaw || '—',
+    });
+  }
+  return out;
+};
 
 export const isSameDay = (d1: Date, d2: Date) => 
   d1.getFullYear() === d2.getFullYear() &&

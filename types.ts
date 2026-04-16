@@ -58,6 +58,8 @@ export interface ApiResponse {
   orders?: Order[];
   managers?: User[];
   oldDoctorKeys?: string[]; // Ключи врачей, посещённых ДО запрошенного месяца (формат: "врач|ЛПУ" и "name:врач")
+  /** Сырые строки листа «База» (справочник врачей по территориям) */
+  doctorBase?: Record<string, unknown>[];
 }
 
 export enum GroupSort {
@@ -105,6 +107,18 @@ export interface MpAnalyticsStats {
   uniqueSpecVisits: Visit[];
   potentialInLPU: number;
   potentialTerritory: number;
+  /** Потенциал наш — врачи наших МП (ЛПУ + спец совпадают) */
+  potentialOurs: number;
+  /** Потенциал рынка — врачи из Базы (ЛПУ + спец совпадают) */
+  potentialMarket: number;
+}
+
+/** Нормализованная строка листа «База» — для аналитики потенциала */
+export interface DoctorBaseRow {
+  territory: string;
+  lpuAbbr: string;
+  doctor: string;
+  spec: string;
 }
 
 /** Запись о враче, которого МП не посещает (потенциал) */
@@ -113,6 +127,8 @@ export interface PotentialDoctor {
   lpu: string;
   spec: string;
   visitedByReps: string[];
+  /** Из листа «База», в периоде не было ни одного визита к этому врачу в этом ЛПУ */
+  fromBase?: boolean;
 }
 
 /** План/факт по визитам для одного МП */
@@ -129,6 +145,7 @@ export interface GlobalState {
   fixation: Fixation[];
   orders: Order[];
   oldDoctorKeys: string[]; // Ключи "врач|ЛПУ" и "name:врач" — врачи, посещённые до текущего месяца (от сервера)
+  doctorBase: DoctorBaseRow[];
   loading: boolean;
   error: string | null;
 }

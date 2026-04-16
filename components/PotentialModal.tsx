@@ -1,39 +1,35 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PotentialDoctor } from '../types';
-
-type Mode = 'lpu' | 'territory';
 
 interface Props {
   mpName: string;
-  potentialInLPU: PotentialDoctor[];
-  potentialTerritory: PotentialDoctor[];
+  modeLabel: string;
+  description: string;
+  doctors: PotentialDoctor[];
   onClose: () => void;
 }
 
-const PotentialModal: React.FC<Props> = ({ mpName, potentialInLPU, potentialTerritory, onClose }) => {
-  const [mode, setMode] = useState<Mode>('lpu');
+const PotentialModal: React.FC<Props> = ({ mpName, modeLabel, description, doctors, onClose }) => {
   const [filterLPU, setFilterLPU] = useState('');
   const [filterSpec, setFilterSpec] = useState('');
 
-  const source = mode === 'lpu' ? potentialInLPU : potentialTerritory;
-
   const lpuOptions = useMemo(
-    () => Array.from(new Set(source.map(d => d.lpu))).sort((a, b) => a.localeCompare(b, 'ru')),
-    [source]
+    () => Array.from(new Set(doctors.map(d => d.lpu))).sort((a, b) => a.localeCompare(b, 'ru')),
+    [doctors]
   );
 
   const specOptions = useMemo(
-    () => Array.from(new Set(source.map(d => d.spec).filter(s => s !== '—'))).sort((a, b) => a.localeCompare(b, 'ru')),
-    [source]
+    () => Array.from(new Set(doctors.map(d => d.spec).filter(s => s !== '—'))).sort((a, b) => a.localeCompare(b, 'ru')),
+    [doctors]
   );
 
   const filtered = useMemo(() => {
-    return source.filter(d => {
+    return doctors.filter(d => {
       if (filterLPU && d.lpu !== filterLPU) return false;
       if (filterSpec && d.spec !== filterSpec) return false;
       return true;
     });
-  }, [source, filterLPU, filterSpec]);
+  }, [doctors, filterLPU, filterSpec]);
 
   const grouped = useMemo(() => {
     const byLPU: Record<string, PotentialDoctor[]> = {};
@@ -52,32 +48,11 @@ const PotentialModal: React.FC<Props> = ({ mpName, potentialInLPU, potentialTerr
             <div>
               <h3 className="font-black text-xl tracking-tight mb-1">Потенциал</h3>
               <p className="text-xs text-white/60 font-bold uppercase tracking-widest">
-                {mpName} — {filtered.length} врачей{mode === 'lpu' ? ' в своих ЛПУ' : ' по территории'}
+                {mpName} — {filtered.length} врачей · {modeLabel}
               </p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-          </div>
-
-          <div className="flex gap-1 mt-4 bg-white/10 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => { setMode('lpu'); setFilterLPU(''); setFilterSpec(''); }}
-              className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                mode === 'lpu' ? 'bg-white text-brand-primary shadow' : 'text-white/70 hover:text-white'
-              }`}
-            >
-              В своих ЛПУ
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode('territory'); setFilterLPU(''); setFilterSpec(''); }}
-              className={`flex-1 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                mode === 'territory' ? 'bg-white text-brand-primary shadow' : 'text-white/70 hover:text-white'
-              }`}
-            >
-              По территории
             </button>
           </div>
         </div>
@@ -135,11 +110,17 @@ const PotentialModal: React.FC<Props> = ({ mpName, potentialInLPU, potentialTerr
                           <td className="px-4 py-2 text-xs text-gray-400 whitespace-nowrap">{d.spec}</td>
                           <td className="px-4 py-2 text-right">
                             <div className="flex flex-wrap gap-1 justify-end">
-                              {d.visitedByReps.map(rep => (
-                                <span key={rep} className="text-[9px] font-bold text-brand-accent bg-brand-accent/10 px-1.5 py-0.5 rounded whitespace-nowrap">
-                                  {rep}
+                              {d.fromBase && d.visitedByReps.length === 0 ? (
+                                <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                  База · в периоде визитов не было
                                 </span>
-                              ))}
+                              ) : (
+                                d.visitedByReps.map(rep => (
+                                  <span key={rep} className="text-[9px] font-bold text-brand-accent bg-brand-accent/10 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                    {rep}
+                                  </span>
+                                ))
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -151,16 +132,14 @@ const PotentialModal: React.FC<Props> = ({ mpName, potentialInLPU, potentialTerr
             </div>
           ) : (
             <div className="text-center py-20 text-gray-400 font-bold italic">
-              {source.length === 0 ? 'Нет потенциальных врачей' : 'Нет данных по выбранным фильтрам'}
+              {doctors.length === 0 ? 'Нет потенциальных врачей' : 'Нет данных по выбранным фильтрам'}
             </div>
           )}
         </div>
 
         <div className="p-6 bg-white border-t border-gray-100 flex justify-between items-center shrink-0">
           <p className="text-[10px] text-gray-400 font-medium max-w-md">
-            {mode === 'lpu'
-              ? 'Врачи в ЛПУ, куда МП уже ходит, но к этим врачам — нет. Их посещают другие МП.'
-              : 'Врачи тех же специальностей по территории, к которым МП ещё не ходит.'}
+            {description}
           </p>
           <button
             onClick={onClose}
