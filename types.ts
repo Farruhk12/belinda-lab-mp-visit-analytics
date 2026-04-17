@@ -70,7 +70,7 @@ export enum GroupSort {
   OTHER = 99
 }
 
-export type TabType = 'visits' | 'calendar' | 'analytics' | 'planfact' | 'admin' | 'cache';
+export type TabType = 'visits' | 'calendar' | 'analytics' | 'planfact' | 'lpuVisits' | 'admin' | 'cache';
 
 /** Общие фильтры сотрудников (синхрон между разделами) */
 export interface SharedFilters {

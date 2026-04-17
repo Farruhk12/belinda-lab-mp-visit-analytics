@@ -5,6 +5,7 @@ import { getVisitRepName, parseDoctorBaseRows } from './utils';
 import VisitsSection from './components/VisitsSection';
 import CalendarSection from './components/CalendarSection';
 import AnalyticsSection from './components/AnalyticsSection';
+import LpuVisitsSection from './components/LpuVisitsSection';
 import WeekendPickerModal from './components/WeekendPickerModal';
 import LoginPage from './components/LoginPage';
 import FullscreenLoader from './components/FullscreenLoader';
@@ -588,6 +589,7 @@ const App: React.FC = () => {
           <TabButton id="calendar" label="Календарь визитов" activeTab={activeTab} onSelect={setActiveTab} />
           <TabButton id="analytics" label="Аналитика визитов" activeTab={activeTab} onSelect={setActiveTab} />
           <TabButton id="planfact" label="План/Факт" activeTab={activeTab} onSelect={setActiveTab} />
+          <TabButton id="lpuVisits" label="Визиты по ЛПУ" activeTab={activeTab} onSelect={setActiveTab} />
           <TabButton id="cache" label="Локальный кэш" activeTab={activeTab} onSelect={setActiveTab} />
           {currentUser.role === 'admin' && (
              <TabButton id="admin" label="Администрирование" activeTab={activeTab} onSelect={setActiveTab} />
@@ -646,6 +648,13 @@ const App: React.FC = () => {
                     onOpenWeekendPicker={() => setIsWeekendPickerOpen(true)}
                   />
                 </Suspense>
+              )}
+              {activeTab === 'lpuVisits' && (
+                <LpuVisitsSection
+                  data={filteredState}
+                  currentMonth={currentMonth}
+                  excludedDates={excludedDates}
+                />
               )}
               {activeTab === 'admin' && currentUser.role === 'admin' && (
                 <Suspense fallback={<SectionSuspenseFallback />}>
