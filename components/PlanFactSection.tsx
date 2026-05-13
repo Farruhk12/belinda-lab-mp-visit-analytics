@@ -6,7 +6,6 @@ import { useSharedEmployeeFilters } from '../hooks/useSharedEmployeeFilters';
 import { CustomMonthInput, CustomSelect } from './ui';
 import DetailModal from './DetailModal';
 import ExportExcelButton from './ExportExcelButton';
-import { exportPlanFactExcel } from '../services/excelExport';
 
 interface ContractDetail {
   doctor: string;
@@ -181,16 +180,17 @@ const PlanFactSection: React.FC<Props> = ({ data, excludedDates, sharedFilters, 
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Отчёт</label>
           <ExportExcelButton
-            onExport={() =>
-              exportPlanFactExcel({
+            onExport={async () => {
+              const { exportPlanFactExcel } = await import('../services/excelExport');
+              await exportPlanFactExcel({
                 selectedMonth,
                 groupedData,
                 stats,
                 contractStats,
                 planMonth: PLAN_MONTH,
                 planContracts: PLAN_CONTRACTS,
-              })
-            }
+              });
+            }}
           />
         </div>
       </div>

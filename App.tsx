@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { TabType, GlobalState, ApiResponse, User, Employee, SharedFilters, SharedFilterKey } from './types';
-import { getVisitRepName, parseDoctorBaseRows } from './utils';
+import { getVisitRepName, parseDoctorBaseRows, territoryMatchesEmployee } from './utils';
 import VisitsSection from './components/VisitsSection';
 import CalendarSection from './components/CalendarSection';
 import AnalyticsSection from './components/AnalyticsSection';
@@ -311,6 +311,34 @@ const App: React.FC = () => {
     [currentMonth, refreshCacheMetaForMonth]
   );
 
+  const handleDiscoverMonths = useCallback(
+    (signal?: AbortSignal): Promise<string[]> =>
+      discoverFullTableMonthRange(API_URL, signal),
+    []
+  );
+
+  const handleDownloadMonthsToCache = useCallback(
+    async (opts: {
+      months: string[];
+      signal: AbortSignal;
+      onProgress: (p: CacheDownloadProgress) => void;
+      onMonthSaved?: () => void;
+    }) => {
+      const { months, signal, onProgress, onMonthSaved } = opts;
+      if (months.length === 0) return;
+      await downloadMonthsToCacheParallel({
+        apiUrl: API_URL,
+        months,
+        signal,
+        onProgress,
+        onMonthSaved,
+      });
+      writeFullCacheExportTime(new Date().toISOString());
+      await refreshCacheMetaForMonth(currentMonth);
+    },
+    [currentMonth, refreshCacheMetaForMonth]
+  );
+
   const handleClearDeviceCache = useCallback(async () => {
     setCacheBusy(true);
     try {
@@ -444,7 +472,27 @@ const App: React.FC = () => {
       const mpFixations = state.fixation.filter(f => f.МП === mpName);
       const mpActiveEmployees = state.employees.filter(e => e.МП === mpName);
       const mpAllEmployees = state.allEmployees.filter(e => e.МП === mpName);
-      return { ...state, visits: mpVisits, fixation: mpFixations, employees: mpActiveEmployees, allEmployees: mpAllEmployees, orders: state.orders };
+
+      const mpRec = state.allEmployees.find(e => e.МП === mpName);
+      const mpGroup = (mpRec?.Группа || '').toLowerCase().trim();
+      const mpTerritory = mpRec?.Область || '';
+
+      const mpOrders = mpGroup
+        ? state.orders.filter(o => (o['Группа товара'] || '').toLowerCase().trim() === mpGroup)
+        : [];
+      const mpDoctorBase = mpTerritory
+        ? state.doctorBase.filter(r => territoryMatchesEmployee(mpTerritory, r.territory))
+        : [];
+
+      return {
+        ...state,
+        visits: mpVisits,
+        fixation: mpFixations,
+        employees: mpActiveEmployees,
+        allEmployees: mpAllEmployees,
+        orders: mpOrders,
+        doctorBase: mpDoctorBase,
+      };
     }
 
     const { territories, groups } = currentUser.permissions;
@@ -469,12 +517,29 @@ const App: React.FC = () => {
 
     const allowedFixations = state.fixation.filter(f => allowedMpNames.has(f.МП));
 
+    const allowedOrders = canSeeAllGroups
+      ? state.orders
+      : (() => {
+          const allowedGroupSet = new Set(groups.map(g => g.toLowerCase().trim()));
+          return state.orders.filter(o =>
+            allowedGroupSet.has((o['Группа товара'] || '').toLowerCase().trim())
+          );
+        })();
+
+    const allowedDoctorBase = canSeeAllTerritories
+      ? state.doctorBase
+      : state.doctorBase.filter(r =>
+          territories.some(t => territoryMatchesEmployee(t, r.territory))
+        );
+
     return {
       ...state,
       visits: allowedVisits,
       employees: allowedActiveEmployees,
       allEmployees: allowedAllEmployees,
-      fixation: allowedFixations
+      fixation: allowedFixations,
+      orders: allowedOrders,
+      doctorBase: allowedDoctorBase,
     };
   }, [state, currentUser]);
 
@@ -488,6 +553,8 @@ const App: React.FC = () => {
     onSaveCurrentMonthToCache: handleSaveToCache,
     onDownloadAllMonthsToCache: handleDownloadAllMonthsToCache,
     onClearDeviceCache: handleClearDeviceCache,
+    onDiscoverMonths: handleDiscoverMonths,
+    onDownloadMonthsToCache: handleDownloadMonthsToCache,
   };
 
   if (!currentUser) {

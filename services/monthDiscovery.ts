@@ -1,5 +1,40 @@
 import type { ApiResponse } from '../types';
 
+/** Ключ кэша списка месяцев и его TTL */
+export const DISCOVER_CACHE_KEY = 'belinda_discovered_months';
+export const DISCOVER_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+export interface DiscoverCacheEntry {
+  ts: number;
+  months: string[];
+}
+
+export function readDiscoverCache(): DiscoverCacheEntry | null {
+  try {
+    const raw = localStorage.getItem(DISCOVER_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.ts !== 'number' || !Array.isArray(parsed?.months)) return null;
+    return parsed as DiscoverCacheEntry;
+  } catch {
+    return null;
+  }
+}
+
+export function writeDiscoverCache(months: string[]): void {
+  try {
+    const entry: DiscoverCacheEntry = { ts: Date.now(), months };
+    localStorage.setItem(DISCOVER_CACHE_KEY, JSON.stringify(entry));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isDiscoverCacheFresh(entry: DiscoverCacheEntry | null): boolean {
+  if (!entry) return false;
+  return Date.now() - entry.ts < DISCOVER_CACHE_TTL_MS;
+}
+
 function collectMonthsFromRows(rows: Record<string, unknown>[]): Set<string> {
   const set = new Set<string>();
   for (const row of rows) {

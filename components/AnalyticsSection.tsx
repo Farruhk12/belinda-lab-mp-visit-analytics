@@ -7,7 +7,6 @@ import DetailModal from './DetailModal';
 import PotentialModal from './PotentialModal';
 import { loadMonthSnapshot } from '../services/dataCache';
 import ExportExcelButton from './ExportExcelButton';
-import { exportAnalyticsExcel } from '../services/excelExport';
 
 interface Props {
   data: GlobalState;
@@ -509,10 +508,11 @@ const AnalyticsSection: React.FC<Props> = ({
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Отчёт</label>
           <ExportExcelButton
-            onExport={() => {
+            onExport={async () => {
               const m = sortYm(analyticsMonths);
               const periodLabel = m.length > 1 ? m.join(', ') : m[0] || currentMonth;
-              return exportAnalyticsExcel({ groupedData, stats, periodLabel });
+              const { exportAnalyticsExcel } = await import('../services/excelExport');
+              await exportAnalyticsExcel({ groupedData, stats, periodLabel });
             }}
           />
         </div>

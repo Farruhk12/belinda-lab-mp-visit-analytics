@@ -5,7 +5,6 @@ import { normalizeDate, getVisitRepName, getVisitDoctor, getVisitLPUAbbr, getVis
 import { useSharedEmployeeFilters } from '../hooks/useSharedEmployeeFilters';
 import { CustomMonthInput, CustomSelect } from './ui';
 import ExportExcelButton from './ExportExcelButton';
-import { exportCalendarExcel } from '../services/excelExport';
 
 interface Props {
   data: GlobalState;
@@ -79,15 +78,16 @@ const CalendarSection: React.FC<Props> = ({ data, excludedDates, sharedFilters, 
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Отчёт</label>
           <ExportExcelButton
-            onExport={() =>
-              exportCalendarExcel({
+            onExport={async () => {
+              const { exportCalendarExcel } = await import('../services/excelExport');
+              await exportCalendarExcel({
                 selectedMonth,
                 groupedData,
                 monthDays,
                 visits: data.visits,
                 fixation: data.fixation,
-              })
-            }
+              });
+            }}
           />
         </div>
       </div>

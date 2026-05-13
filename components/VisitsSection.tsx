@@ -5,7 +5,6 @@ import { normalizeDate, getVisitRepName, getVisitLPUAbbr, getVisitDoctor, getVis
 import { useSharedEmployeeFilters } from '../hooks/useSharedEmployeeFilters';
 import { CustomDateInput, CustomSelect } from './ui';
 import ExportExcelButton from './ExportExcelButton';
-import { exportVisitsExcel } from '../services/excelExport';
 
 interface Props {
   data: GlobalState;
@@ -70,14 +69,15 @@ const VisitsSection: React.FC<Props> = ({ data, excludedDates, sharedFilters, on
           <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Отчёт</label>
           <ExportExcelButton
             disabled={isCurrentDayWeekend}
-            onExport={() =>
-              exportVisitsExcel({
+            onExport={async () => {
+              const { exportVisitsExcel } = await import('../services/excelExport');
+              await exportVisitsExcel({
                 date,
                 tableData,
                 visits: data.visits,
                 fixation: data.fixation,
-              })
-            }
+              });
+            }}
           />
         </div>
       </div>
